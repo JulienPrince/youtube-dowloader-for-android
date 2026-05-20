@@ -11,16 +11,25 @@ class ConversionService {
     required String artist,
     String? thumbnailPath,
   }) async {
-    final cover = thumbnailPath != null ? '-i "$thumbnailPath"' : '';
-    final mapCover = thumbnailPath != null
-        ? '-map 0:a -map 1:0 -id3v2_version 3 -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (front)"'
-        : '-map 0:a';
-    final cmd =
-        '-y -i "$inputPath" $cover -vn $mapCover '
-        '-c:a libmp3lame -q:a 2 '
-        '-metadata title="$title" -metadata artist="$artist" '
-        '"$outputPath"';
-    final session = await FFmpegKit.execute(cmd);
+    // executeWithArguments passe chaque argument tel quel : pas de parsing
+    // shell, donc des titres avec espaces ou guillemets ne cassent rien.
+    final args = <String>[
+      '-y', '-i', inputPath,
+      if (thumbnailPath != null) ...['-i', thumbnailPath],
+      '-vn',
+      if (thumbnailPath != null) ...[
+        '-map', '0:a', '-map', '1:0', '-id3v2_version', '3',
+        '-metadata:s:v', 'title=Album cover',
+        '-metadata:s:v', 'comment=Cover (front)',
+      ] else ...[
+        '-map', '0:a',
+      ],
+      '-c:a', 'libmp3lame', '-q:a', '2',
+      '-metadata', 'title=$title',
+      '-metadata', 'artist=$artist',
+      outputPath,
+    ];
+    final session = await FFmpegKit.executeWithArguments(args);
     final rc = await session.getReturnCode();
     return ReturnCode.isSuccess(rc);
   }

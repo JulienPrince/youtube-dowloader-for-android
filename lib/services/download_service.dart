@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../data/download_repository.dart';
 import '../models/download_task.dart';
@@ -34,15 +35,30 @@ class DownloadService {
         task = task.copyWith(status: DownloadStatus.done, localPath: out, progress: 1);
       } else {
         final tmp = await StorageService.tempPath('$base.${option.container}');
+        String? thumb;
         await _dio.download(option.url, tmp,
             onReceiveProgress: (r, t) => _progress(task, r, t));
         await _repo.upsert(task.copyWith(status: DownloadStatus.converting, progress: 1));
         final out = await StorageService.musicPath('$base.mp3');
-        final ok = await _conversion.toMp3(
-          inputPath: tmp, outputPath: out,
-          title: info.title, artist: info.author,
-        );
-        if (!ok) throw Exception('FFmpeg failed');
+        try {
+          if (info.thumbnailUrl.isNotEmpty) {
+            thumb = await StorageService.tempPath('$base.cover.jpg');
+            try {
+              await _dio.download(info.thumbnailUrl, thumb);
+            } catch (_) {
+              thumb = null; // pochette best-effort
+            }
+          }
+          final ok = await _conversion.toMp3(
+            inputPath: tmp, outputPath: out,
+            title: info.title, artist: info.author,
+            thumbnailPath: thumb,
+          );
+          if (!ok) throw Exception('FFmpeg failed');
+        } finally {
+          await _deleteQuietly(tmp);
+          if (thumb != null) await _deleteQuietly(thumb);
+        }
         task = task.copyWith(status: DownloadStatus.done, localPath: out, progress: 1);
       }
       await _repo.upsert(task);
@@ -56,6 +72,12 @@ class DownloadService {
   void _progress(DownloadTask task, int received, int total) {
     if (total <= 0) return;
     _repo.upsert(task.copyWith(progress: received / total));
+  }
+
+  Future<void> _deleteQuietly(String path) async {
+    try {
+      await File(path).delete();
+    } catch (_) {}
   }
 
   /// File séquentielle: skip + log sur échec. Retourne (ok, total).
