@@ -25,7 +25,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   String _currentUrl = 'https://m.youtube.com';
   final _settings = SettingsService();
   late final _extractor = YoutubeExplodeExtractor();
-  late final _downloader = DownloadService(widget.repo);
+  late final _downloader = DownloadService(widget.repo, _extractor);
 
   bool get _onVideo => UrlUtils.videoId(_currentUrl) != null;
 
@@ -35,7 +35,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     VideoInfo info;
     try {
       info = await _extractor.extractVideo(url);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[Tubebox] extractVideo failed for "$url": $e');
       _toast('Impossible de lire cette vidéo');
       return;
     }

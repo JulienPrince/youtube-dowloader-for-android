@@ -19,6 +19,8 @@ class YoutubeExplodeExtractor implements VideoExtractor {
         label: s.qualityLabel,
         url: s.url.toString(),
         container: s.container.name,
+        sizeBytes: s.size.totalBytes,
+        source: s,
       ));
     }
     final audio = manifest.audioOnly.withHighestBitrate();
@@ -28,6 +30,8 @@ class YoutubeExplodeExtractor implements VideoExtractor {
       url: audio.url.toString(),
       container: audio.container.name,
       bitrate: audio.bitrate.kiloBitsPerSecond.round(),
+      sizeBytes: audio.size.totalBytes,
+      source: audio,
     ));
 
     return VideoInfo(
@@ -51,6 +55,15 @@ class YoutubeExplodeExtractor implements VideoExtractor {
     await for (final v in _yt.playlists.getVideos(url)) {
       yield await extractVideo(v.url);
     }
+  }
+
+  @override
+  Stream<List<int>> readStream(StreamOption option) {
+    final info = option.source;
+    if (info is! StreamInfo) {
+      throw ArgumentError('StreamOption sans StreamInfo youtube_explode');
+    }
+    return _yt.videos.streamsClient.get(info);
   }
 
   void dispose() => _yt.close();

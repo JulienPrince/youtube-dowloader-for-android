@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../data/download_repository.dart';
+import '../extractor/video_extractor.dart';
 import '../models/download_task.dart';
 import '../models/download_format.dart';
 import '../models/video_info.dart';
@@ -9,11 +10,13 @@ import 'storage_service.dart';
 import 'conversion_service.dart';
 
 class DownloadService {
-  final Dio _dio;
   final DownloadRepository _repo;
+  final VideoExtractor _extractor;
+  final Dio _dio; // miniature uniquement (i.ytimg.com, pas throttlé)
   final ConversionService _conversion;
 
-  DownloadService(this._repo, {Dio? dio, ConversionService? conversion})
+  DownloadService(this._repo, this._extractor,
+      {Dio? dio, ConversionService? conversion})
       : _dio = dio ?? Dio(),
         _conversion = conversion ?? ConversionService();
 
@@ -30,14 +33,12 @@ class DownloadService {
     try {
       if (option.format == DownloadFormat.mp4) {
         final out = await StorageService.videoPath('$base.mp4');
-        await _dio.download(option.url, out,
-            onReceiveProgress: (r, t) => _progress(task, r, t));
+        await _writeStream(option, out, task);
         task = task.copyWith(status: DownloadStatus.done, localPath: out, progress: 1);
       } else {
         final tmp = await StorageService.tempPath('$base.${option.container}');
         String? thumb;
-        await _dio.download(option.url, tmp,
-            onReceiveProgress: (r, t) => _progress(task, r, t));
+        await _writeStream(option, tmp, task);
         await _repo.upsert(task.copyWith(status: DownloadStatus.converting, progress: 1));
         final out = await StorageService.musicPath('$base.mp3');
         try {
@@ -69,9 +70,30 @@ class DownloadService {
     }
   }
 
-  void _progress(DownloadTask task, int received, int total) {
-    if (total <= 0) return;
-    _repo.upsert(task.copyWith(progress: received / total));
+  /// Écrit le flux dans [path] via le client de l'extracteur (débit plein,
+  /// pas de throttling). Progression throttlée à chaque % entier.
+  Future<void> _writeStream(
+      StreamOption option, String path, DownloadTask task) async {
+    final sink = File(path).openWrite();
+    final total = option.sizeBytes ?? 0;
+    var received = 0;
+    var lastPct = -1;
+    try {
+      await for (final chunk in _extractor.readStream(option)) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total > 0) {
+          final pct = received * 100 ~/ total;
+          if (pct != lastPct) {
+            lastPct = pct;
+            await _repo.upsert(task.copyWith(progress: received / total));
+          }
+        }
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
   }
 
   Future<void> _deleteQuietly(String path) async {
