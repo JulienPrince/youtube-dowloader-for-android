@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../extractor/video_extractor.dart';
 import '../extractor/youtube_explode_extractor.dart';
@@ -61,13 +62,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
     _toast('Téléchargement lancé…');
 
-    if (wholePlaylist) {
-      final (ok, total) =
-          await _downloader.downloadPlaylist(_extractor.extractPlaylist(url), opt.format);
-      _toast('$ok/$total téléchargés');
-    } else {
-      final success = await _downloader.downloadOne(info, opt);
-      _toast(success ? 'Terminé : ${info.title}' : 'Échec du téléchargement');
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'Téléchargement en cours',
+      notificationText: 'Tubebox',
+    );
+    try {
+      if (wholePlaylist) {
+        final (ok, total) =
+            await _downloader.downloadPlaylist(_extractor.extractPlaylist(url), opt.format);
+        _toast('$ok/$total téléchargés');
+      } else {
+        final success = await _downloader.downloadOne(info, opt);
+        _toast(success ? 'Terminé : ${info.title}' : 'Échec du téléchargement');
+      }
+    } finally {
+      await FlutterForegroundTask.stopService();
     }
   }
 
