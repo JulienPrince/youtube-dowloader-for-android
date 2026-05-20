@@ -26,6 +26,7 @@ void main() async {
   );
   final repo = DownloadRepository();
   await repo.open();
+  await repo.failStale(); // vide les téléchargements zombies d'un process tué
   final settings = SettingsService();
   final themeMode = await settings.themeMode();
   final accent = await settings.accent();

@@ -72,7 +72,8 @@ Future<PlaylistChoice?> showPlaylistChoiceDialog(
               ),
               const SizedBox(height: 12),
               radio(PlaylistChoice.single, 'Cette vidéo seulement', videoTitle),
-              radio(PlaylistChoice.all, 'Toute la playlist ($count vidéos)', '~ ${count * 14} min de contenu'),
+              radio(PlaylistChoice.all, 'Toute la playlist ($count vidéos)',
+                  'Téléchargées une par une'),
               const SizedBox(height: 14),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 TextButton(onPressed: () => Navigator.pop(ctx),

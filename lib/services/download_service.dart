@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../data/download_repository.dart';
 import '../extractor/video_extractor.dart';
@@ -65,6 +66,7 @@ class DownloadService {
       await _repo.upsert(task);
       return true;
     } catch (e) {
+      debugPrint('[DL] FAIL "${info.title}": $e');
       await _repo.upsert(task.copyWith(status: DownloadStatus.failed, error: e.toString()));
       return false;
     }

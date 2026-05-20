@@ -47,3 +47,4 @@ app.*.map.json
 # Internal docs & design artifacts (specs, plans, Claude Design bundle)
 /docs/superpowers/
 /.design/
+images

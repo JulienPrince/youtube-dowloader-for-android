@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/video_info.dart';
 import '../models/stream_option.dart';
@@ -10,7 +11,12 @@ class YoutubeExplodeExtractor implements VideoExtractor {
   @override
   Future<VideoInfo> extractVideo(String url) async {
     final video = await _yt.videos.get(url);
-    final manifest = await _yt.videos.streamsClient.getManifest(video.id);
+    // androidVr fournit des URLs téléchargeables sans PoToken (évite le 403) ;
+    // android complète avec un flux muxé (MP4 360p). 2 clients = plus rapide.
+    final manifest = await _yt.videos.streamsClient.getManifest(
+      video.id,
+      ytClients: [YoutubeApiClient.androidVr, YoutubeApiClient.android],
+    );
 
     final options = <StreamOption>[];
     for (final s in manifest.muxed) {
@@ -47,7 +53,14 @@ class YoutubeExplodeExtractor implements VideoExtractor {
   @override
   Future<PlaylistMeta> playlistMeta(String url) async {
     final pl = await _yt.playlists.get(url);
-    return PlaylistMeta(pl.title, pl.videoCount ?? 0);
+    // videoCount est souvent null côté youtube_explode -> on énumère.
+    var count = pl.videoCount ?? 0;
+    debugPrint('[PL] "${pl.title}" videoCount=${pl.videoCount}');
+    if (count <= 0) {
+      count = await _yt.playlists.getVideos(url).length;
+      debugPrint('[PL] énuméré -> $count vidéos');
+    }
+    return PlaylistMeta(pl.title, count);
   }
 
   @override
@@ -63,6 +76,7 @@ class YoutubeExplodeExtractor implements VideoExtractor {
     if (info is! StreamInfo) {
       throw ArgumentError('StreamOption sans StreamInfo youtube_explode');
     }
+    // Client natif : requêtes Range segmentées -> plein débit (pas de throttle).
     return _yt.videos.streamsClient.get(info);
   }
 

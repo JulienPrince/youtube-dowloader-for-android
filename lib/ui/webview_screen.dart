@@ -7,6 +7,7 @@ import '../services/download_service.dart';
 import '../data/download_repository.dart';
 import '../settings/settings_service.dart';
 import '../models/video_info.dart';
+import '../models/download_task.dart';
 import '../theme/app_theme.dart';
 import '../utils/url_utils.dart';
 import 'widgets/format_sheet.dart';
@@ -27,29 +28,41 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late final _extractor = YoutubeExplodeExtractor();
   late final _downloader = DownloadService(widget.repo, _extractor);
 
+  bool _busy = false; // analyse en cours (extraction + métadonnées)
+
   bool get _onVideo => UrlUtils.videoId(_currentUrl) != null;
 
   Future<void> _onDownloadPressed() async {
+    if (_busy) return;
     final url = _currentUrl;
+    setState(() => _busy = true);
 
-    VideoInfo info;
+    // Phase analyse (réseau) : extraction + métadonnées playlist.
+    final VideoInfo info;
+    PlaylistMeta? meta;
     try {
       info = await _extractor.extractVideo(url);
     } catch (e) {
       debugPrint('[Tubebox] extractVideo failed for "$url": $e');
+      if (mounted) setState(() => _busy = false);
       _toast('Impossible de lire cette vidéo');
       return;
     }
-
-    bool wholePlaylist = false;
+    // Métadonnées playlist : non bloquant (on garde le téléchargement vidéo seule).
     if (UrlUtils.isPlaylist(url)) {
-      PlaylistMeta meta;
       try {
         meta = await _extractor.playlistMeta(url);
-      } catch (_) {
+      } catch (e) {
+        debugPrint('[Tubebox] playlistMeta failed for "$url": $e');
         meta = const PlaylistMeta('Playlist', 0);
       }
-      if (!mounted) return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    // Phase interactive.
+    bool wholePlaylist = false;
+    if (meta != null) {
       final choice = await showPlaylistChoiceDialog(context,
           playlistTitle: meta.title, count: meta.count, videoTitle: info.title);
       if (choice == null) return;
@@ -82,6 +95,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  Future<void> _retry(DownloadTask task) async {
+    try {
+      final info = await _extractor
+          .extractVideo('https://www.youtube.com/watch?v=${task.id}');
+      final opt = info.options.firstWhere((o) => o.format == task.format,
+          orElse: () => info.options.first);
+      await _downloader.downloadOne(info, opt);
+    } catch (e) {
+      debugPrint('[Tubebox] retry failed: $e');
+      _toast('Échec de la reprise');
+    }
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -100,8 +126,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.download_done_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => DownloadsScreen(repo: widget.repo))),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        DownloadsScreen(repo: widget.repo, onRetry: _retry))),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -118,11 +147,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ),
       floatingActionButton: _onVideo
           ? FloatingActionButton.extended(
-              onPressed: _onDownloadPressed,
+              onPressed: _busy ? null : _onDownloadPressed,
               backgroundColor: c.accent,
               foregroundColor: Colors.white,
-              icon: const Icon(Icons.download),
-              label: const Text('Télécharger', style: TextStyle(fontWeight: FontWeight.w600)),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.download),
+              label: Text(_busy ? 'Analyse…' : 'Télécharger',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
             )
           : null,
     );

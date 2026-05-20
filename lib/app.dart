@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'data/download_repository.dart';
 import 'theme/app_theme.dart';
+import 'ui/splash_screen.dart';
 import 'ui/webview_screen.dart';
 import 'ui/onboarding_screen.dart';
 
@@ -25,7 +26,9 @@ class App extends StatelessWidget {
       theme: AppTheme.light(accent),
       darkTheme: AppTheme.dark(accent),
       themeMode: themeMode,
-      home: onboarded ? WebViewScreen(repo: repo) : OnboardingScreen(repo: repo),
+      home: SplashScreen(
+        next: onboarded ? WebViewScreen(repo: repo) : OnboardingScreen(repo: repo),
+      ),
     );
   }
 }

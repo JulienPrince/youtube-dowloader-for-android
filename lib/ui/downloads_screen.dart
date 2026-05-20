@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/download_repository.dart';
 import '../models/download_task.dart';
@@ -6,14 +7,36 @@ import '../theme/app_theme.dart';
 
 class DownloadsScreen extends StatefulWidget {
   final DownloadRepository repo;
-  const DownloadsScreen({super.key, required this.repo});
+  final Future<void> Function(DownloadTask task)? onRetry;
+  const DownloadsScreen({super.key, required this.repo, this.onRetry});
   @override
   State<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
   late Future<List<DownloadTask>> _future = widget.repo.getAll();
-  void _refresh() => setState(() => _future = widget.repo.getAll());
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Rafraîchit en continu pour voir la progression et le passage en "Terminés".
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    final future = widget.repo.getAll();
+    setState(() {
+      _future = future;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +172,16 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Text(t.error ?? 'Échec', maxLines: 1, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 11, color: c.error)),
         ])),
-        Icon(Icons.refresh, size: 16, color: c.text2),
+        if (widget.onRetry != null)
+          IconButton(
+            icon: Icon(Icons.refresh, size: 18, color: c.text2),
+            tooltip: 'Réessayer',
+            onPressed: () async {
+              await widget.repo.delete(t.id);
+              _refresh();
+              await widget.onRetry!(t);
+            },
+          ),
       ]),
     );
   }
