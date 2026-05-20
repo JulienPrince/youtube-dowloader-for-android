@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             Image.asset('assets/branding/logo.png', width: 200),
             const SizedBox(height: 24),
-            Text('John Wick', style: gothic.copyWith(color: Colors.white)),
+            Text('John Wick', style: const TextStyle(color: Colors.white)),
             Text('Dev', style: gothic.copyWith(color: kAccentDefault)),
           ],
         ),

@@ -16,7 +16,6 @@ class YoutubeExplodeExtractor implements VideoExtractor {
     final manifest = await _yt.videos.streamsClient.getManifest(
       video.id,
       ytClients: [YoutubeApiClient.androidVr, YoutubeApiClient.android],
-      requireWatchPage: false, // évite un 2e fetch de la page -> plus rapide
     );
 
     final options = <StreamOption>[];
