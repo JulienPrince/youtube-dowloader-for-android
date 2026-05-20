@@ -6,7 +6,44 @@
 
 **Architecture:** WebView (`flutter_inappwebview`) → suivi d'URL → FAB Télécharger → extraction via une interface `VideoExtractor` (impl `youtube_explode_dart`) → téléchargement `dio` dans un Foreground Service → conversion FFmpeg (`audio` variant) pour le MP3 → état persisté en `sqflite`.
 
-**Tech Stack:** Flutter/Dart, flutter_inappwebview, youtube_explode_dart, ffmpeg_kit_flutter_new (audio), dio, sqflite, path_provider, permission_handler, flutter_foreground_task.
+**Tech Stack:** Flutter/Dart, flutter_inappwebview, youtube_explode_dart, ffmpeg_kit_flutter_new (audio), dio, sqflite, path_provider, permission_handler, flutter_foreground_task, google_fonts.
+
+**App :** **Tubebox** — tagline « Téléchargez. C'est tout. ». Package `com.prince.tubebox`.
+
+---
+
+## Design System (issu du handoff Claude Design)
+
+Reproduire fidèlement ces tokens. Vibe minimaliste : beaucoup d'espace, hairlines 0.5px, accent orange **uniquement** sur les actions de téléchargement.
+
+**Polices :** Geist (sans) + Geist Mono (chiffres/labels techniques), via `google_fonts`. `letter-spacing: -0.005em`, features `ss01 cv11`.
+
+**Accent :** `#FF7A00` (orange, défaut). Palette settings : `#FF7A00`, `#FF0033`, `#2E7DFF`, `#16A34A`, mono.
+
+**Tokens couleur (clair / sombre) :**
+
+| token | light | dark |
+|-------|-------|------|
+| bg | `#FAFAFA` | `#0A0A0A` |
+| bg-2 | `#F4F4F4` | `#0F0F0F` |
+| surface | `#FFFFFF` | `#141414` |
+| surface-2 | `#F7F7F7` | `#1A1A1A` |
+| text | `#0A0A0A` | `#FAFAFA` |
+| text-2 | `#404040` | `#D4D4D4` |
+| muted | `#737373` | `#8A8A8A` |
+| faint | `#A3A3A3` | `#5C5C5C` |
+| border | `#EAEAEA` | `#1F1F1F` |
+| border-2 | `#D4D4D4` | `#2A2A2A` |
+| error | `#E04444` | `#E04444` |
+
+**Composants clés :**
+- **FAB** : extended (icône download + « Télécharger »), `height 52`, `radius 28`, fond accent, ombre teintée accent. Position bottom-right 16.
+- **Bottom sheet format** : liste linéaire, chaque ligne = icône (film/musique) + label (`MP4 1080p`, `MP3 320 kbps`) + taille estimée + tag (`Full HD`, `Léger`…). Badge accent « Dernier utilisé » sur le dernier choix. Note bas de sheet « Demander à chaque fois ».
+- **Dialog playlist** : titre + sous-titre, carte contexte (icône liste + titre playlist + nb), 2 `RadioRow` (« Cette vidéo seulement » / « Toute la playlist (N vidéos) »), boutons Annuler / Continuer. Row sélectionnée = fond `accent 8%`.
+- **Téléchargements** : 3 onglets soulignés (En cours / Terminés / Erreurs) avec pastille de compte. Ligne active = thumbnail + titre + `MP4 720p · 78 Mo` + boutons pause/close + `pbar` (barre 3px) ; conversion = barre rayée + point pulsant ; en file = point gris. Ligne terminée = thumbnail + meta + menu. Ligne erreur = carré rouge + raison en rouge + bouton retry.
+- **pbar** : 3px, radius 999, fond `border`, remplissage accent. Variante indéterminée (sweep) + variante rayée (conversion).
+- **Settings** : sections en eyebrow majuscule ; cartes moteur (radio + label mono + tag `v1` / `Bientôt` grisé) ; rows label/valeur/chevron.
+- **Onboarding** : BrandMark (carré accent 56px, radius 16, flèche download blanche), titre 28px, sous-titre muted, liste de 3 permissions (Stockage / Notifications / Tâche d'arrière-plan) avec état Autorisé/Autoriser, CTA pleine largeur « Commencer ».
 
 ---
 
@@ -32,13 +69,17 @@ lib/
   data/
     download_repository.dart             # sqflite CRUD des DownloadTask
   settings/
-    settings_service.dart                # SharedPreferences: moteur + dernier format
+    settings_service.dart                # SharedPreferences: moteur + dernier format + thème
+  theme/
+    app_theme.dart                       # tokens Tubebox (clair/sombre) + Geist + accent
   ui/
+    onboarding_screen.dart               # permissions 1er lancement
     webview_screen.dart                  # WebView + FAB + suivi URL + détection playlist
-    downloads_screen.dart                # file: en cours / terminés / erreurs
+    downloads_screen.dart                # 3 onglets: en cours / terminés / erreurs
+    settings_screen.dart                 # moteur d'extraction + défauts + stockage + à propos
     widgets/
-      format_dialog.dart                 # choix mp4/mp3 + qualité
-      playlist_choice_dialog.dart        # radio: cette vidéo / playlist
+      format_sheet.dart                  # bottom sheet linéaire mp4/mp3 + qualités + badge
+      playlist_choice_dialog.dart        # radio: cette vidéo / playlist + carte contexte
   utils/
     url_utils.dart                       # parsing URL: videoId, isPlaylist, listId
 android/app/src/main/AndroidManifest.xml # permissions + foreground service
@@ -64,7 +105,7 @@ Tâches ordonnées des unités pures (testables sans device) vers l'UI/natif (v�
 Run:
 ```bash
 cd /Volumes/SSD-Prince/Dev/Projet/Personel/youtube-dowloader-for-android
-flutter create --org com.prince --project-name yt_downloader --platforms android .
+flutter create --org com.prince --project-name tubebox --platforms android .
 ```
 Expected: arbre `lib/`, `android/`, `pubspec.yaml` créés. (Le repo a déjà `docs/`, ne pas l'écraser.)
 
@@ -72,7 +113,7 @@ Expected: arbre `lib/`, `android/`, `pubspec.yaml` créés. (Le repo a déjà `d
 
 Run:
 ```bash
-flutter pub add flutter_inappwebview youtube_explode_dart dio sqflite path_provider permission_handler shared_preferences flutter_foreground_task
+flutter pub add flutter_inappwebview youtube_explode_dart dio sqflite path_provider permission_handler shared_preferences flutter_foreground_task google_fonts
 flutter pub add ffmpeg_kit_flutter_new
 flutter pub add --dev flutter_test
 ```
@@ -80,7 +121,7 @@ Expected: `pubspec.yaml` mis à jour, `flutter pub get` OK.
 
 - [ ] **Step 3: Fixer minSdk et nom**
 
-Modifier `android/app/build.gradle.kts` (ou `.gradle`) : `minSdk = 24`, `applicationId = "com.prince.yt_downloader"`. Modifier `android/app/src/main/AndroidManifest.xml` : `android:label="YT Downloader"`.
+Modifier `android/app/build.gradle.kts` (ou `.gradle`) : `minSdk = 24`, `applicationId = "com.prince.tubebox"`. Modifier `android/app/src/main/AndroidManifest.xml` : `android:label="Tubebox"`.
 
 - [ ] **Step 4: Vérifier le build**
 
@@ -95,6 +136,99 @@ git add -A && git commit -m "chore: scaffold Flutter app + deps"
 
 ---
 
+## Task 1.1: Thème Tubebox (tokens + Geist + accent)
+
+**Files:**
+- Create: `lib/theme/app_theme.dart`
+
+> Fondation visuelle réutilisée par tous les écrans. Couleurs custom exposées via une extension de thème pour coller aux tokens du design (au-delà du ColorScheme Material).
+
+- [ ] **Step 1: Implémenter**
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+const kAccentDefault = Color(0xFFFF7A00);
+const kAccentOptions = [
+  Color(0xFFFF7A00), Color(0xFFFF0033), Color(0xFF2E7DFF), Color(0xFF16A34A),
+];
+
+@immutable
+class TubeboxColors extends ThemeExtension<TubeboxColors> {
+  final Color bg, bg2, surface, surface2, text, text2, muted, faint, border, border2, error, accent;
+  const TubeboxColors({
+    required this.bg, required this.bg2, required this.surface, required this.surface2,
+    required this.text, required this.text2, required this.muted, required this.faint,
+    required this.border, required this.border2, required this.error, required this.accent,
+  });
+
+  static const light = TubeboxColors(
+    bg: Color(0xFFFAFAFA), bg2: Color(0xFFF4F4F4), surface: Color(0xFFFFFFFF),
+    surface2: Color(0xFFF7F7F7), text: Color(0xFF0A0A0A), text2: Color(0xFF404040),
+    muted: Color(0xFF737373), faint: Color(0xFFA3A3A3), border: Color(0xFFEAEAEA),
+    border2: Color(0xFFD4D4D4), error: Color(0xFFE04444), accent: kAccentDefault,
+  );
+  static const dark = TubeboxColors(
+    bg: Color(0xFF0A0A0A), bg2: Color(0xFF0F0F0F), surface: Color(0xFF141414),
+    surface2: Color(0xFF1A1A1A), text: Color(0xFFFAFAFA), text2: Color(0xFFD4D4D4),
+    muted: Color(0xFF8A8A8A), faint: Color(0xFF5C5C5C), border: Color(0xFF1F1F1F),
+    border2: Color(0xFF2A2A2A), error: Color(0xFFE04444), accent: kAccentDefault,
+  );
+
+  TubeboxColors withAccent(Color a) => TubeboxColors(
+    bg: bg, bg2: bg2, surface: surface, surface2: surface2, text: text, text2: text2,
+    muted: muted, faint: faint, border: border, border2: border2, error: error, accent: a,
+  );
+
+  @override
+  TubeboxColors copyWith() => this;
+  @override
+  TubeboxColors lerp(ThemeExtension<TubeboxColors>? other, double t) =>
+      other is TubeboxColors ? other : this;
+}
+
+class AppTheme {
+  static ThemeData _build(TubeboxColors c, Brightness b) {
+    final base = b == Brightness.dark ? ThemeData.dark() : ThemeData.light();
+    return base.copyWith(
+      scaffoldBackgroundColor: c.bg,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: c.accent, brightness: b, primary: c.accent, surface: c.surface,
+      ),
+      textTheme: GoogleFonts.geistTextTheme(base.textTheme)
+          .apply(bodyColor: c.text, displayColor: c.text),
+      extensions: [c],
+      useMaterial3: true,
+    );
+  }
+
+  static ThemeData light(Color accent) =>
+      _build(TubeboxColors.light.withAccent(accent), Brightness.light);
+  static ThemeData dark(Color accent) =>
+      _build(TubeboxColors.dark.withAccent(accent), Brightness.dark);
+}
+
+extension TubeboxColorsX on BuildContext {
+  TubeboxColors get c => Theme.of(this).extension<TubeboxColors>()!;
+  TextStyle get mono => GoogleFonts.geistMono();
+}
+```
+
+- [ ] **Step 2: Vérifier la compilation**
+
+Run: `flutter analyze lib/theme/app_theme.dart`
+Expected: No issues.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/theme/app_theme.dart
+git commit -m "feat: tubebox theme (tokens light/dark, geist, accent)"
+```
+
+---
+
 ## Task 2: url_utils (parsing URL, détection playlist)
 
 **Files:**
@@ -105,7 +239,7 @@ git add -A && git commit -m "chore: scaffold Flutter app + deps"
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yt_downloader/utils/url_utils.dart';
+import 'package:tubebox/utils/url_utils.dart';
 
 void main() {
   test('extrait le videoId d une watch url', () {
@@ -233,8 +367,8 @@ class VideoInfo {
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yt_downloader/models/download_task.dart';
-import 'package:yt_downloader/models/download_format.dart';
+import 'package:tubebox/models/download_task.dart';
+import 'package:tubebox/models/download_format.dart';
 
 void main() {
   test('toMap / fromMap round-trip', () {
@@ -359,7 +493,7 @@ git commit -m "feat: models (format, stream option, video info, download task)"
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yt_downloader/services/storage_service.dart';
+import 'package:tubebox/services/storage_service.dart';
 
 void main() {
   test('supprime les caractères interdits FAT32', () {
@@ -428,9 +562,9 @@ Expected: OK.
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:yt_downloader/data/download_repository.dart';
-import 'package:yt_downloader/models/download_task.dart';
-import 'package:yt_downloader/models/download_format.dart';
+import 'package:tubebox/data/download_repository.dart';
+import 'package:tubebox/models/download_task.dart';
+import 'package:tubebox/models/download_format.dart';
 
 void main() {
   setUpAll(() {
@@ -533,8 +667,15 @@ git commit -m "feat: download repository (sqflite)"
 ```dart
 import '../models/video_info.dart';
 
+class PlaylistMeta {
+  final String title;
+  final int count;
+  const PlaylistMeta(this.title, this.count);
+}
+
 abstract class VideoExtractor {
   Future<VideoInfo> extractVideo(String url);
+  Future<PlaylistMeta> playlistMeta(String url);
   Stream<VideoInfo> extractPlaylist(String url);
 }
 ```
@@ -544,7 +685,7 @@ abstract class VideoExtractor {
 ```dart
 @Tags(['network'])
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yt_downloader/extractor/youtube_explode_extractor.dart';
+import 'package:tubebox/extractor/youtube_explode_extractor.dart';
 
 void main() {
   test('extrait infos + options d une vidéo connue', () async {
@@ -606,6 +747,12 @@ class YoutubeExplodeExtractor implements VideoExtractor {
       duration: video.duration ?? Duration.zero,
       options: options,
     );
+  }
+
+  @override
+  Future<PlaylistMeta> playlistMeta(String url) async {
+    final pl = await _yt.playlists.get(url);
+    return PlaylistMeta(pl.title, pl.videoCount ?? 0);
   }
 
   @override
@@ -700,17 +847,19 @@ import 'package:path_provider/path_provider.dart';
 
 // dans class StorageService :
   static Future<String> _baseDir(String sub) async {
-    final dir = Directory('/storage/emulated/0/$sub');
-    if (await dir.exists()) return dir.path;
-    final fallback = await getExternalStorageDirectory();
-    return fallback!.path;
+    var dir = Directory('/storage/emulated/0/$sub');
+    if (!await Directory('/storage/emulated/0').exists()) {
+      dir = Directory(p.join((await getExternalStorageDirectory())!.path, sub));
+    }
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir.path;
   }
 
   static Future<String> musicPath(String fileName) async =>
-      p.join(await _baseDir('Music'), fileName);
+      p.join(await _baseDir('Music/Tubebox'), fileName);
 
   static Future<String> videoPath(String fileName) async =>
-      p.join(await _baseDir('Movies'), fileName);
+      p.join(await _baseDir('Movies/Tubebox'), fileName);
 
   static Future<String> tempPath(String fileName) async =>
       p.join((await getTemporaryDirectory()).path, fileName);
@@ -842,26 +991,46 @@ git commit -m "feat: download service (single + playlist queue, skip on error)"
 - [ ] **Step 1: Implémenter**
 
 ```dart
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/download_format.dart';
+import '../theme/app_theme.dart';
 
 class SettingsService {
   static const _kEngine = 'extractor_engine'; // 'youtube_explode' | 'yt_dlp'
-  static const _kLastFormat = 'last_format';
+  static const _kLastFormatLabel = 'last_format_label';
+  static const _kThemeMode = 'theme_mode'; // 'light' | 'dark' | 'system'
+  static const _kAccent = 'accent';
+  static const _kOnboarded = 'onboarded';
 
   Future<String> engine() async =>
       (await SharedPreferences.getInstance()).getString(_kEngine) ?? 'youtube_explode';
-
   Future<void> setEngine(String v) async =>
       (await SharedPreferences.getInstance()).setString(_kEngine, v);
 
-  Future<DownloadFormat> lastFormat() async {
-    final v = (await SharedPreferences.getInstance()).getString(_kLastFormat);
-    return v == null ? DownloadFormat.mp4 : DownloadFormat.values.byName(v);
-  }
+  // Label du dernier format choisi (ex "MP3 128kbps") -> badge "Dernier utilisé".
+  Future<String?> lastFormatLabel() async =>
+      (await SharedPreferences.getInstance()).getString(_kLastFormatLabel);
+  Future<void> setLastFormatLabel(String label) async =>
+      (await SharedPreferences.getInstance()).setString(_kLastFormatLabel, label);
 
-  Future<void> setLastFormat(DownloadFormat f) async =>
-      (await SharedPreferences.getInstance()).setString(_kLastFormat, f.name);
+  Future<ThemeMode> themeMode() async {
+    final v = (await SharedPreferences.getInstance()).getString(_kThemeMode);
+    return switch (v) { 'light' => ThemeMode.light, 'dark' => ThemeMode.dark, _ => ThemeMode.system };
+  }
+  Future<void> setThemeMode(ThemeMode m) async =>
+      (await SharedPreferences.getInstance()).setString(_kThemeMode, m.name);
+
+  Future<Color> accent() async {
+    final v = (await SharedPreferences.getInstance()).getInt(_kAccent);
+    return v == null ? kAccentDefault : Color(v);
+  }
+  Future<void> setAccent(Color c) async =>
+      (await SharedPreferences.getInstance()).setInt(_kAccent, c.value);
+
+  Future<bool> onboarded() async =>
+      (await SharedPreferences.getInstance()).getBool(_kOnboarded) ?? false;
+  Future<void> setOnboarded() async =>
+      (await SharedPreferences.getInstance()).setBool(_kOnboarded, true);
 }
 ```
 
@@ -879,116 +1048,243 @@ git commit -m "feat: settings service (engine + last format)"
 
 ---
 
-## Task 11: Dialogs (format + choix playlist)
+## Task 11: Format bottom sheet + playlist dialog (design Tubebox)
 
 **Files:**
-- Create: `lib/ui/widgets/format_dialog.dart`, `lib/ui/widgets/playlist_choice_dialog.dart`
-- Test: `test/ui/format_dialog_test.dart` (widget test)
+- Create: `lib/ui/widgets/format_sheet.dart`, `lib/ui/widgets/playlist_choice_dialog.dart`
+- Test: `test/ui/format_sheet_test.dart` (widget test)
 
-- [ ] **Step 1: Écrire le widget test du format_dialog**
+> Référence visuelle : `.design/youtube/project/screens-main.jsx` (`FormatSheet`, `PlaylistDialog`). Le sheet est peuplé par les `StreamOption` réels de la vidéo (pas une liste figée) ; le badge « Dernier utilisé » s'affiche sur l'option dont le `label` == dernier label mémorisé.
+
+- [ ] **Step 1: Écrire le widget test du sheet**
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yt_downloader/ui/widgets/format_dialog.dart';
-import 'package:yt_downloader/models/download_format.dart';
+import 'package:tubebox/ui/widgets/format_sheet.dart';
+import 'package:tubebox/models/stream_option.dart';
+import 'package:tubebox/models/download_format.dart';
+import 'package:tubebox/theme/app_theme.dart';
 
 void main() {
-  testWidgets('retourne le format choisi', (tester) async {
-    DownloadFormat? picked;
+  testWidgets('retourne l option choisie', (tester) async {
+    final opts = [
+      const StreamOption(format: DownloadFormat.mp4, label: 'MP4 720p', url: 'u1', container: 'mp4'),
+      const StreamOption(format: DownloadFormat.mp3, label: 'Audio 128kbps', url: 'u2', container: 'm4a'),
+    ];
+    StreamOption? picked;
     await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light(kAccentDefault),
       home: Builder(builder: (ctx) => ElevatedButton(
-        onPressed: () async =>
-            picked = await showFormatDialog(ctx, DownloadFormat.mp4),
+        onPressed: () async => picked = await showFormatSheet(ctx, opts, null),
         child: const Text('open'),
       )),
     ));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('MP3 (audio)'));
+    await tester.tap(find.text('Audio 128kbps'));
     await tester.pumpAndSettle();
-    expect(picked, DownloadFormat.mp3);
+    expect(picked?.label, 'Audio 128kbps');
   });
 }
 ```
 
 - [ ] **Step 2: Lancer, vérifier l échec**
 
-Run: `flutter test test/ui/format_dialog_test.dart`
+Run: `flutter test test/ui/format_sheet_test.dart`
 Expected: FAIL.
 
-- [ ] **Step 3: Implémenter `format_dialog.dart`**
+- [ ] **Step 3: Implémenter `format_sheet.dart`**
 
 ```dart
 import 'package:flutter/material.dart';
+import '../../models/stream_option.dart';
 import '../../models/download_format.dart';
+import '../../theme/app_theme.dart';
 
-Future<DownloadFormat?> showFormatDialog(
-    BuildContext context, DownloadFormat last) {
-  return showDialog<DownloadFormat>(
+Future<StreamOption?> showFormatSheet(
+    BuildContext context, List<StreamOption> options, String? lastLabel) {
+  return showModalBottomSheet<StreamOption>(
     context: context,
-    builder: (ctx) => SimpleDialog(
-      title: const Text('Format de téléchargement'),
-      children: [
-        SimpleDialogOption(
-          onPressed: () => Navigator.pop(ctx, DownloadFormat.mp4),
-          child: const Text('MP4 (vidéo)'),
-        ),
-        SimpleDialogOption(
-          onPressed: () => Navigator.pop(ctx, DownloadFormat.mp3),
-          child: const Text('MP3 (audio)'),
-        ),
-      ],
+    backgroundColor: context.c.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
+    builder: (ctx) {
+      final c = ctx.c;
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
+              child: Text('Choisir le format',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.text)),
+            ),
+            ...options.map((o) {
+              final isLast = o.label == lastLabel;
+              final isVideo = o.format == DownloadFormat.mp4;
+              return InkWell(
+                onTap: () => Navigator.pop(ctx, o),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: isLast ? c.accent.withOpacity(0.08) : Colors.transparent,
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 40, height: 40, alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: c.surface2, borderRadius: BorderRadius.circular(12)),
+                      child: Icon(isVideo ? Icons.movie_outlined : Icons.music_note_outlined,
+                          size: 20, color: isVideo ? c.text : c.accent),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Text(o.label,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.text)),
+                            if (isLast) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                    color: c.accent, borderRadius: BorderRadius.circular(999)),
+                                child: const Text('Dernier utilisé',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+                              ),
+                            ],
+                          ]),
+                          const SizedBox(height: 2),
+                          Text(o.container.toUpperCase(),
+                              style: TextStyle(fontSize: 12, color: c.muted)),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, size: 18, color: c.faint),
+                  ]),
+                ),
+              );
+            }),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+              child: Text('Demander à chaque fois',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: c.muted)),
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
 ```
 
 - [ ] **Step 4: Lancer, vérifier le succès**
 
-Run: `flutter test test/ui/format_dialog_test.dart`
+Run: `flutter test test/ui/format_sheet_test.dart`
 Expected: PASS.
 
 - [ ] **Step 5: Implémenter `playlist_choice_dialog.dart`**
 
 ```dart
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 enum PlaylistChoice { single, all }
 
 Future<PlaylistChoice?> showPlaylistChoiceDialog(
-    BuildContext context, int count) {
+  BuildContext context, {
+  required String playlistTitle,
+  required int count,
+  required String videoTitle,
+}) {
   PlaylistChoice choice = PlaylistChoice.single;
   return showDialog<PlaylistChoice>(
     context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) => AlertDialog(
-        title: const Text('Playlist détectée'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<PlaylistChoice>(
-              title: const Text('Cette vidéo seulement'),
-              value: PlaylistChoice.single,
-              groupValue: choice,
-              onChanged: (v) => setState(() => choice = v!),
+    builder: (ctx) {
+      final c = ctx.c;
+      return StatefulBuilder(builder: (ctx, setState) {
+        Widget radio(PlaylistChoice value, String title, String sub) {
+          final on = choice == value;
+          return InkWell(
+            onTap: () => setState(() => choice = value),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: on ? c.accent.withOpacity(0.08) : Colors.transparent,
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 20, height: 20, margin: const EdgeInsets.only(top: 2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: on ? c.accent : c.border2, width: on ? 5 : 1.5),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+                    const SizedBox(height: 2),
+                    Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: c.muted)),
+                  ]),
+                ),
+              ]),
             ),
-            RadioListTile<PlaylistChoice>(
-              title: Text('Toute la playlist ($count vidéos)'),
-              value: PlaylistChoice.all,
-              groupValue: choice,
-              onChanged: (v) => setState(() => choice = v!),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, choice),
-              child: const Text('Télécharger')),
-        ],
-      ),
-    ),
+          );
+        }
+
+        return Dialog(
+          backgroundColor: c.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text("Cette vidéo fait partie d'une playlist",
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: c.text, height: 1.25)),
+              const SizedBox(height: 6),
+              Text('Que voulez-vous télécharger ?', style: TextStyle(fontSize: 13, color: c.muted)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(12)),
+                child: Row(children: [
+                  Icon(Icons.playlist_play, size: 16, color: c.muted),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(playlistTitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: c.text2))),
+                  Text('$count', style: TextStyle(fontSize: 11, color: c.muted)),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              radio(PlaylistChoice.single, 'Cette vidéo seulement', videoTitle),
+              radio(PlaylistChoice.all, 'Toute la playlist ($count vidéos)', '~ ${count * 14} min de contenu'),
+              const SizedBox(height: 14),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                TextButton(onPressed: () => Navigator.pop(ctx),
+                    child: Text('Annuler', style: TextStyle(color: c.text2))),
+                const SizedBox(width: 4),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: c.accent),
+                  onPressed: () => Navigator.pop(ctx, choice),
+                  child: const Text('Continuer'),
+                ),
+              ]),
+            ]),
+          ),
+        );
+      });
+    },
   );
 }
 ```
@@ -997,7 +1293,309 @@ Future<PlaylistChoice?> showPlaylistChoiceDialog(
 
 ```bash
 git add lib/ui/widgets test/ui
-git commit -m "feat: format + playlist choice dialogs"
+git commit -m "feat: format bottom sheet + playlist dialog (tubebox design)"
+```
+
+---
+
+## Task 11.1: settings_screen (moteur + apparence + stockage + à propos)
+
+**Files:**
+- Create: `lib/ui/settings_screen.dart`
+
+> Référence : `.design/youtube/project/screens-other.jsx` (`SettingsScreen`). Le thème et l'accent s'appliquent au prochain lancement (v1).
+
+- [ ] **Step 1: Implémenter**
+
+```dart
+import 'package:flutter/material.dart';
+import '../settings/settings_service.dart';
+import '../theme/app_theme.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _settings = SettingsService();
+  ThemeMode _mode = ThemeMode.system;
+  Color _accent = kAccentDefault;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.themeMode().then((m) => setState(() => _mode = m));
+    _settings.accent().then((a) => setState(() => _accent = a));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.c;
+    return Scaffold(
+      backgroundColor: c.bg,
+      appBar: AppBar(
+        backgroundColor: c.bg, surfaceTintColor: Colors.transparent, elevation: 0,
+        title: const Text('Paramètres', style: TextStyle(fontWeight: FontWeight.w600)),
+      ),
+      body: ListView(children: [
+        _section(c, "Moteur d'extraction"),
+        _engineCard(c, 'youtube_explode_dart', 'Pur Dart. Rapide, léger. Par défaut.', 'v1', active: true),
+        _engineCard(c, 'yt-dlp (bridge natif)', 'Plus robuste, plus lourd. Bientôt.', 'Bientôt', active: false, disabled: true),
+        _section(c, 'Apparence'),
+        _row(c, 'Thème', child: _themeSelector()),
+        _row(c, "Couleur d'accent", child: _accentSwatches(c)),
+        _section(c, 'Par défaut'),
+        _staticRow(c, 'Format par défaut', 'Demander à chaque fois'),
+        _staticRow(c, 'Qualité audio', '320 kbps'),
+        _staticRow(c, 'Qualité vidéo max', '1080p'),
+        _section(c, 'Stockage'),
+        _staticRow(c, 'Dossier musique', 'Music/Tubebox', icon: Icons.folder_outlined),
+        _staticRow(c, 'Dossier vidéos', 'Movies/Tubebox', icon: Icons.folder_outlined),
+        _section(c, 'À propos'),
+        _staticRow(c, 'Version', '1.0.0'),
+        _staticRow(c, 'Build', '2026.05.20 · APK'),
+        const SizedBox(height: 32),
+      ]),
+    );
+  }
+
+  Widget _section(TubeboxColors c, String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        child: Text(label.toUpperCase(),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.2, color: c.muted)),
+      );
+
+  Widget _engineCard(TubeboxColors c, String title, String sub, String tag,
+      {required bool active, bool disabled = false}) {
+    return Opacity(
+      opacity: disabled ? 0.55 : 1,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: active ? c.accent.withOpacity(0.07) : c.surface2,
+          border: Border.all(color: active ? c.accent.withOpacity(0.35) : c.border, width: 0.5),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 20, height: 20, margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: active ? c.accent : c.border2, width: active ? 5 : 1.5)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(child: Text(title,
+                    style: context.mono.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: c.text))),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: active ? c.accent : c.border, borderRadius: BorderRadius.circular(999)),
+                  child: Text(tag,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                          color: active ? Colors.white : c.muted)),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Text(sub, style: TextStyle(fontSize: 12, color: c.muted, height: 1.4)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _row(TubeboxColors c, String title, {required Widget child}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border, width: 0.5))),
+        child: Row(children: [
+          Expanded(child: Text(title, style: TextStyle(fontSize: 14, color: c.text))),
+          child,
+        ]),
+      );
+
+  Widget _staticRow(TubeboxColors c, String title, String value, {IconData? icon}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border, width: 0.5))),
+        child: Row(children: [
+          if (icon != null) ...[Icon(icon, size: 18, color: c.muted), const SizedBox(width: 12)],
+          Expanded(child: Text(title, style: TextStyle(fontSize: 14, color: c.text))),
+          Text(value, style: TextStyle(fontSize: 13, color: c.muted)),
+          Icon(Icons.chevron_right, size: 16, color: c.faint),
+        ]),
+      );
+
+  Widget _themeSelector() => SegmentedButton<ThemeMode>(
+        segments: const [
+          ButtonSegment(value: ThemeMode.system, label: Text('Auto')),
+          ButtonSegment(value: ThemeMode.light, label: Text('Clair')),
+          ButtonSegment(value: ThemeMode.dark, label: Text('Sombre')),
+        ],
+        selected: {_mode},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) {
+          setState(() => _mode = s.first);
+          _settings.setThemeMode(s.first);
+        },
+      );
+
+  Widget _accentSwatches(TubeboxColors c) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: kAccentOptions.map((color) {
+          final on = color.value == _accent.value;
+          return GestureDetector(
+            onTap: () {
+              setState(() => _accent = color);
+              _settings.setAccent(color);
+            },
+            child: Container(
+              width: 24, height: 24, margin: const EdgeInsets.only(left: 8),
+              decoration: BoxDecoration(
+                  color: color, shape: BoxShape.circle,
+                  border: Border.all(color: on ? c.text : Colors.transparent, width: 2)),
+            ),
+          );
+        }).toList(),
+      );
+}
+```
+
+- [ ] **Step 2: Vérifier la compilation**
+
+Run: `flutter analyze lib/ui/settings_screen.dart`
+Expected: No issues.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/ui/settings_screen.dart
+git commit -m "feat: settings screen (engine, theme, accent, storage, about)"
+```
+
+---
+
+## Task 11.2: onboarding_screen (permissions 1er lancement)
+
+**Files:**
+- Create: `lib/ui/onboarding_screen.dart`
+
+> Référence : `.design/youtube/project/screens-other.jsx` (`OnboardingScreen`). Demande les permissions puis marque `onboarded` et ouvre la WebView.
+
+- [ ] **Step 1: Implémenter**
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../data/download_repository.dart';
+import '../settings/settings_service.dart';
+import '../theme/app_theme.dart';
+import 'webview_screen.dart';
+
+class OnboardingScreen extends StatelessWidget {
+  final DownloadRepository repo;
+  const OnboardingScreen({super.key, required this.repo});
+
+  Future<void> _start(BuildContext context) async {
+    await [
+      Permission.storage, Permission.audio, Permission.videos, Permission.notification,
+    ].request();
+    await SettingsService().setOnboarded();
+    if (!context.mounted) return;
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => WebViewScreen(repo: repo)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.c;
+    final perms = <(IconData, String, String)>[
+      (Icons.folder_outlined, 'Stockage', 'Pour ranger les fichiers dans Musique / Vidéos.'),
+      (Icons.notifications_outlined, 'Notifications', 'Pour vous prévenir quand un téléchargement est prêt.'),
+      (Icons.bolt_outlined, "Tâche d'arrière-plan", 'Pour finir les téléchargements écran éteint.'),
+    ];
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Tubebox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.text)),
+              Text('1 / 1', style: TextStyle(fontSize: 11, color: c.muted)),
+            ]),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.download, color: Colors.white, size: 28),
+                  ),
+                  const SizedBox(height: 28),
+                  Text('Téléchargez vos vidéos préférées.',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: c.text, height: 1.15)),
+                  const SizedBox(height: 12),
+                  Text("Naviguez sur YouTube comme d'habitude. Une fois sur une vidéo, touchez « Télécharger ».",
+                      style: TextStyle(fontSize: 14, color: c.muted, height: 1.45)),
+                  const SizedBox(height: 28),
+                  ...perms.map((p) => Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: c.border, width: 0.5))),
+                        child: Row(children: [
+                          Container(
+                            width: 36, height: 36, alignment: Alignment.center,
+                            decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(10)),
+                            child: Icon(p.$1, size: 18, color: c.text2),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(p.$2, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+                              const SizedBox(height: 1),
+                              Text(p.$3, style: TextStyle(fontSize: 12, color: c.muted)),
+                            ]),
+                          ),
+                        ]),
+                      )),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity, height: 52,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: c.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
+                onPressed: () => _start(context),
+                child: const Text('Commencer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+```
+
+- [ ] **Step 2: Vérifier la compilation**
+
+Run: `flutter analyze lib/ui/onboarding_screen.dart`
+Expected: No issues.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/ui/onboarding_screen.dart
+git commit -m "feat: onboarding screen (permissions, brand mark)"
 ```
 
 ---
@@ -1014,15 +1612,18 @@ git commit -m "feat: format + playlist choice dialogs"
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../extractor/video_extractor.dart';
 import '../extractor/youtube_explode_extractor.dart';
 import '../services/download_service.dart';
 import '../data/download_repository.dart';
 import '../settings/settings_service.dart';
-import '../models/download_format.dart';
+import '../models/video_info.dart';
+import '../theme/app_theme.dart';
 import '../utils/url_utils.dart';
-import 'widgets/format_dialog.dart';
+import 'widgets/format_sheet.dart';
 import 'widgets/playlist_choice_dialog.dart';
 import 'downloads_screen.dart';
+import 'settings_screen.dart';
 
 class WebViewScreen extends StatefulWidget {
   final DownloadRepository repo;
@@ -1041,29 +1642,45 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _onDownloadPressed() async {
     final url = _currentUrl;
-    DownloadFormat? format;
-    bool wholePlaylist = false;
 
+    // 1. infos de la vidéo courante (titre + options réelles)
+    VideoInfo info;
+    try {
+      info = await _extractor.extractVideo(url);
+    } catch (_) {
+      _toast('Impossible de lire cette vidéo');
+      return;
+    }
+
+    // 2. si playlist -> dialog cette vidéo / toute la playlist
+    bool wholePlaylist = false;
     if (UrlUtils.isPlaylist(url)) {
-      final choice = await showPlaylistChoiceDialog(context, 0);
+      PlaylistMeta meta;
+      try {
+        meta = await _extractor.playlistMeta(url);
+      } catch (_) {
+        meta = const PlaylistMeta('Playlist', 0);
+      }
+      if (!mounted) return;
+      final choice = await showPlaylistChoiceDialog(context,
+          playlistTitle: meta.title, count: meta.count, videoTitle: info.title);
       if (choice == null) return;
       wholePlaylist = choice == PlaylistChoice.all;
     }
-    format = await showFormatDialog(context, await _settings.lastFormat());
-    if (format == null) return;
-    await _settings.setLastFormat(format);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Téléchargement lancé…')),
-    );
+    // 3. choix du format (bottom sheet, peuplé par les options réelles)
+    if (!mounted) return;
+    final opt = await showFormatSheet(context, info.options, await _settings.lastFormatLabel());
+    if (opt == null) return;
+    await _settings.setLastFormatLabel(opt.label);
+
+    _toast('Téléchargement lancé…');
 
     if (wholePlaylist) {
       final (ok, total) =
-          await _downloader.downloadPlaylist(_extractor.extractPlaylist(url), format);
+          await _downloader.downloadPlaylist(_extractor.extractPlaylist(url), opt.format);
       _toast('$ok/$total téléchargés');
     } else {
-      final info = await _extractor.extractVideo(url);
-      final opt = info.options.firstWhere((o) => o.format == format);
       final success = await _downloader.downloadOne(info, opt);
       _toast(success ? 'Terminé : ${info.title}' : 'Échec du téléchargement');
     }
@@ -1076,14 +1693,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.c;
     return Scaffold(
+      backgroundColor: c.bg,
       appBar: AppBar(
-        title: const Text('YT Downloader'),
+        backgroundColor: c.bg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Tubebox', style: TextStyle(fontWeight: FontWeight.w600)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_done),
+            icon: const Icon(Icons.download_done_outlined),
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => DownloadsScreen(repo: widget.repo))),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
@@ -1096,8 +1723,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
       floatingActionButton: _onVideo
           ? FloatingActionButton.extended(
               onPressed: _onDownloadPressed,
+              backgroundColor: c.accent,
+              foregroundColor: Colors.white,
               icon: const Icon(Icons.download),
-              label: const Text('Télécharger'),
+              label: const Text('Télécharger', style: TextStyle(fontWeight: FontWeight.w600)),
             )
           : null,
     );
@@ -1131,12 +1760,16 @@ git commit -m "feat: webview screen + download FAB + playlist detection"
 - Create: `lib/ui/downloads_screen.dart`, `lib/app.dart`
 - Modify: `lib/main.dart`, `android/app/src/main/AndroidManifest.xml`
 
-- [ ] **Step 1: Implémenter `downloads_screen.dart`**
+- [ ] **Step 1: Implémenter `downloads_screen.dart`** (3 onglets, design Tubebox)
+
+> Référence : `.design/youtube/project/screens-other.jsx` (`DownloadsScreen`, `ActiveRow`, `DoneRow`, `ErrorRow`). On regroupe les `DownloadTask` par statut.
 
 ```dart
 import 'package:flutter/material.dart';
 import '../data/download_repository.dart';
 import '../models/download_task.dart';
+import '../models/download_format.dart';
+import '../theme/app_theme.dart';
 
 class DownloadsScreen extends StatefulWidget {
   final DownloadRepository repo;
@@ -1147,45 +1780,144 @@ class DownloadsScreen extends StatefulWidget {
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
   late Future<List<DownloadTask>> _future = widget.repo.getAll();
-
   void _refresh() => setState(() => _future = widget.repo.getAll());
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mes téléchargements'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh)],
+    final c = context.c;
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: c.bg,
+        appBar: AppBar(
+          backgroundColor: c.bg,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: const Text('Mes téléchargements', style: TextStyle(fontWeight: FontWeight.w600)),
+          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh)],
+          bottom: TabBar(
+            indicatorColor: c.accent,
+            labelColor: c.text,
+            unselectedLabelColor: c.muted,
+            tabs: const [Tab(text: 'En cours'), Tab(text: 'Terminés'), Tab(text: 'Erreurs')],
+          ),
+        ),
+        body: FutureBuilder<List<DownloadTask>>(
+          future: _future,
+          builder: (ctx, snap) {
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+            final all = snap.data!;
+            bool isActive(DownloadTask t) =>
+                t.status == DownloadStatus.queued ||
+                t.status == DownloadStatus.downloading ||
+                t.status == DownloadStatus.converting;
+            return TabBarView(children: [
+              _list(all.where(isActive).toList(), _activeRow),
+              _list(all.where((t) => t.status == DownloadStatus.done).toList(), _doneRow),
+              _list(all.where((t) => t.status == DownloadStatus.failed).toList(), _errorRow),
+            ]);
+          },
+        ),
       ),
-      body: FutureBuilder<List<DownloadTask>>(
-        future: _future,
-        builder: (ctx, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final tasks = snap.data!;
-          if (tasks.isEmpty) return const Center(child: Text('Aucun téléchargement'));
-          return ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (ctx, i) {
-              final t = tasks[i];
-              return ListTile(
-                title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${t.format.name} · ${t.status.name}'
-                    '${t.error != null ? ' · ${t.error}' : ''}'),
-                trailing: t.status == DownloadStatus.downloading ||
-                        t.status == DownloadStatus.converting
-                    ? SizedBox(
-                        width: 36, height: 36,
-                        child: CircularProgressIndicator(value: t.progress))
-                    : Icon(t.status == DownloadStatus.done
-                        ? Icons.check_circle
-                        : t.status == DownloadStatus.failed
-                            ? Icons.error
-                            : Icons.schedule),
-              );
-            },
-          );
-        },
-      ),
+    );
+  }
+
+  Widget _list(List<DownloadTask> tasks, Widget Function(BuildContext, DownloadTask) row) {
+    if (tasks.isEmpty) {
+      return Center(child: Text('Rien ici', style: TextStyle(color: context.c.muted)));
+    }
+    return ListView.separated(
+      itemCount: tasks.length,
+      separatorBuilder: (_, __) => Divider(height: 0.5, color: context.c.border),
+      itemBuilder: (ctx, i) => row(ctx, tasks[i]),
+    );
+  }
+
+  Widget _thumb(BuildContext ctx, DownloadTask t) {
+    final c = ctx.c;
+    return Container(
+      width: 56, height: 35, alignment: Alignment.center,
+      decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(8)),
+      child: Icon(t.format == DownloadFormat.mp3 ? Icons.music_note : Icons.movie,
+          size: 16, color: c.muted),
+    );
+  }
+
+  Widget _activeRow(BuildContext ctx, DownloadTask t) {
+    final c = ctx.c;
+    final converting = t.status == DownloadStatus.converting;
+    final queued = t.status == DownloadStatus.queued;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _thumb(ctx, t),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text, height: 1.3)),
+            const SizedBox(height: 3),
+            Text(t.format.name.toUpperCase(), style: TextStyle(fontSize: 11, color: c.muted)),
+          ])),
+        ]),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 3,
+            value: (converting || queued) ? null : t.progress,
+            backgroundColor: c.border,
+            valueColor: AlwaysStoppedAnimation(c.accent),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(queued ? 'En file' : converting ? 'Conversion MP3…' : '${(t.progress * 100).round()}%',
+            style: TextStyle(fontSize: 11, color: c.muted)),
+      ]),
+    );
+  }
+
+  Widget _doneRow(BuildContext ctx, DownloadTask t) {
+    final c = ctx.c;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(children: [
+        _thumb(ctx, t),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+          const SizedBox(height: 2),
+          Text('${t.format.name.toUpperCase()} · ${t.localPath?.split('/').last ?? ''}',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: c.muted)),
+        ])),
+        Icon(Icons.check_circle, size: 18, color: c.accent),
+      ]),
+    );
+  }
+
+  Widget _errorRow(BuildContext ctx, DownloadTask t) {
+    final c = ctx.c;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 52, height: 32, alignment: Alignment.center,
+          decoration: BoxDecoration(
+              color: c.error.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+          child: Icon(Icons.error_outline, size: 18, color: c.error),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+          const SizedBox(height: 2),
+          Text(t.error ?? 'Échec', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: c.error)),
+        ])),
+        Icon(Icons.refresh, size: 16, color: c.text2),
+      ]),
     );
   }
 }
@@ -1196,18 +1928,32 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 ```dart
 import 'package:flutter/material.dart';
 import 'data/download_repository.dart';
+import 'theme/app_theme.dart';
 import 'ui/webview_screen.dart';
+import 'ui/onboarding_screen.dart';
 
 class App extends StatelessWidget {
   final DownloadRepository repo;
-  const App({super.key, required this.repo});
+  final ThemeMode themeMode;
+  final Color accent;
+  final bool onboarded;
+  const App({
+    super.key,
+    required this.repo,
+    required this.themeMode,
+    required this.accent,
+    required this.onboarded,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'YT Downloader',
-      theme: ThemeData(colorSchemeSeed: Colors.red, useMaterial3: true),
-      home: WebViewScreen(repo: repo),
+      title: 'Tubebox',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(accent),
+      darkTheme: AppTheme.dark(accent),
+      themeMode: themeMode,
+      home: onboarded ? WebViewScreen(repo: repo) : OnboardingScreen(repo: repo),
     );
   }
 }
@@ -1217,17 +1963,19 @@ class App extends StatelessWidget {
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'data/download_repository.dart';
+import 'settings/settings_service.dart';
 import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repo = DownloadRepository();
   await repo.open();
-  await [Permission.storage, Permission.audio, Permission.videos, Permission.notification]
-      .request();
-  runApp(App(repo: repo));
+  final settings = SettingsService();
+  final themeMode = await settings.themeMode();
+  final accent = await settings.accent();
+  final onboarded = await settings.onboarded();
+  runApp(App(repo: repo, themeMode: themeMode, accent: accent, onboarded: onboarded));
 }
 ```
 
@@ -1253,12 +2001,13 @@ Expected: No issues + BUILD SUCCESSFUL.
 
 Run: `flutter run`
 Vérifier :
-1. La WebView ouvre YouTube mobile, navigation OK.
-2. Ouvrir une vidéo → le FAB « Télécharger » apparaît.
-3. Clic → dialog format → choisir MP3 → snackbar « lancé » puis « Terminé ».
-4. Le `.mp3` est dans `Music/`, lisible par un lecteur, avec titre/pochette.
-5. Ouvrir une vidéo avec `&list=` → le dialog radio playlist apparaît.
-6. Onglet « Mes téléchargements » liste l item ; relancer l app → toujours présent.
+1. 1er lancement → écran Onboarding Tubebox, « Commencer » demande les permissions puis ouvre la WebView.
+2. La WebView ouvre YouTube mobile, navigation OK ; FAB orange « Télécharger » visible sur une vidéo.
+3. Clic → bottom sheet format (options réelles, badge « Dernier utilisé ») → choisir MP3 → snackbar « lancé » puis « Terminé ».
+4. Le `.mp3` est dans `Music/Tubebox/`, lisible par un lecteur, avec titre/pochette.
+5. Ouvrir une vidéo avec `&list=` → dialog playlist (radio cette vidéo / toute la playlist) avant le sheet.
+6. Écran « Mes téléchargements » : 3 onglets (En cours / Terminés / Erreurs) ; relancer l app → terminés toujours présents.
+7. Thème : `body[data-theme]` clair par défaut ; tester le sombre via le réglage (effet au prochain lancement).
 
 - [ ] **Step 7: Commit**
 
@@ -1301,16 +2050,19 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 - [ ] **Step 2: Démarrer/arrêter le service autour du téléchargement**
 
-Dans `webview_screen.dart`, encadrer `_onDownloadPressed` :
+Dans `webview_screen.dart`, encadrer la phase de téléchargement de `_onDownloadPressed` (après `setLastFormatLabel`, autour du bloc `if (wholePlaylist) … else …`) :
 ```dart
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-// au début du vrai téléchargement (après choix format) :
+// juste avant le bloc de téléchargement :
     await FlutterForegroundTask.startService(
       notificationTitle: 'Téléchargement en cours',
-      notificationText: 'YT Downloader',
+      notificationText: 'Tubebox',
     );
-// dans un finally après la fin (single ou playlist) :
-    await FlutterForegroundTask.stopService();
+    try {
+      // ... bloc if (wholePlaylist) { ... } else { ... } ...
+    } finally {
+      await FlutterForegroundTask.stopService();
+    }
 ```
 
 - [ ] **Step 3: Déclarer le service dans `AndroidManifest.xml`** (dans `<application>`)
@@ -1341,4 +2093,8 @@ git commit -m "feat: foreground service for background downloads"
 - **Réseau dans les tests** : le test extracteur (Task 6) est taggé `network` ; l exclure en CI avec `flutter test --exclude-tags network`.
 - **Wiring du settings/moteur** : v1 instancie directement `YoutubeExplodeExtractor`. Pour activer le switch, `WebViewScreen` lira `SettingsService.engine()` et choisira l impl — trivial une fois `YtDlpExtractor` ajouté (v2).
 - **Quota MP4 muxed** : `youtube_explode_dart` ne fournit du muxed (audio+vidéo) qu en qualités limitées (souvent ≤ 720p). Pour de la HD vidéo il faudrait muxer un flux vidéo-only + audio-only via FFmpeg — hors périmètre v1.
+- **Police Geist** : si la version installée de `google_fonts` n'expose pas `GoogleFonts.geist()` / `GoogleFonts.geistMono()`, soit mettre `google_fonts` à jour, soit bundler les .ttf Geist dans `assets/fonts/` et les déclarer dans `pubspec.yaml` (fallback : Inter).
+- **API `flutter_foreground_task`** : la signature de `ForegroundTaskOptions` varie selon la version. Adapter au constructeur de la version résolue par `pub get` (vérifier la doc de la version installée).
+- **Référence visuelle** : le bundle Claude Design est conservé dans `.design/youtube/project/` (HTML/CSS/JSX). Les tâches UI le citent pour les détails pixel ; reproduire le rendu, pas la structure interne du prototype.
+- **Thème runtime** : en v1, changer thème/accent dans les Paramètres s'applique au prochain lancement (lu une fois au boot). Live-reload = v2 (remonter via un `ValueNotifier` au-dessus de `MaterialApp`).
 ```
