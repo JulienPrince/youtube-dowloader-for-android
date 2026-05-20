@@ -73,4 +73,9 @@ flutter build apk --release --split-per-abi
 - `youtube_explode_dart` peut casser lors de changements YouTube ; l'interface `VideoExtractor` permet de basculer vers yt-dlp (v2).
 - APK release signé avec la clé debug (sideload uniquement).
 - Usage strictement personnel ; le respect des conditions d'utilisation de YouTube relève de l'utilisateur.
-```
+
+## Licence
+
+Code sous licence **[MIT](LICENSE)** © 2026 Julien Prince.
+
+Dépendances/ressources bundlées sous leurs propres licences : FFmpeg + `libmp3lame` (LGPL), police **Pirata One** (SIL Open Font License), `youtube_explode_dart` (MIT).
