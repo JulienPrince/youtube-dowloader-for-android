@@ -61,7 +61,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     }
     return ListView.separated(
       itemCount: tasks.length,
-      separatorBuilder: (_, __) => Divider(height: 0.5, color: context.c.border),
+      separatorBuilder: (_, _) => Divider(height: 0.5, color: context.c.border),
       itemBuilder: (ctx, i) => row(ctx, tasks[i]),
     );
   }

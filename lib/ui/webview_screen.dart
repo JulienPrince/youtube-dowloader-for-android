@@ -55,8 +55,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
       wholePlaylist = choice == PlaylistChoice.all;
     }
 
+    final lastLabel = await _settings.lastFormatLabel();
     if (!mounted) return;
-    final opt = await showFormatSheet(context, info.options, await _settings.lastFormatLabel());
+    final opt = await showFormatSheet(context, info.options, lastLabel);
     if (opt == null) return;
     await _settings.setLastFormatLabel(opt.label);
 
