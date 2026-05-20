@@ -168,7 +168,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         title: const Text('Tubebox', style: TextStyle(fontWeight: FontWeight.w600)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download_done_outlined),
+            icon: const Icon(Icons.download_for_offline_outlined),
             onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(

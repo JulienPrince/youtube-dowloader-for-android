@@ -15,12 +15,13 @@ class DownloadsScreen extends StatefulWidget {
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
-  late Future<List<DownloadTask>> _future = widget.repo.getAll();
+  List<DownloadTask>? _tasks;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    _refresh();
     // Rafraîchit en continu pour voir la progression et le passage en "Terminés".
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
   }
@@ -31,17 +32,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     super.dispose();
   }
 
-  void _refresh() {
-    if (!mounted) return;
-    final future = widget.repo.getAll();
-    setState(() {
-      _future = future;
-    });
+  Future<void> _refresh() async {
+    final tasks = await widget.repo.getAll();
+    if (mounted) setState(() => _tasks = tasks);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.c;
+    final all = _tasks;
+    final hasItems = all != null && all.isNotEmpty;
+    bool isActive(DownloadTask t) =>
+        t.status == DownloadStatus.queued ||
+        t.status == DownloadStatus.downloading ||
+        t.status == DownloadStatus.converting;
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -55,7 +59,8 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
               tooltip: 'Tout effacer',
-              onPressed: _clearAll,
+              // désactivé quand il n'y a rien à effacer
+              onPressed: hasItems ? _clearAll : null,
             ),
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
           ],
@@ -66,22 +71,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             tabs: const [Tab(text: 'En cours'), Tab(text: 'Terminés'), Tab(text: 'Erreurs')],
           ),
         ),
-        body: FutureBuilder<List<DownloadTask>>(
-          future: _future,
-          builder: (ctx, snap) {
-            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-            final all = snap.data!;
-            bool isActive(DownloadTask t) =>
-                t.status == DownloadStatus.queued ||
-                t.status == DownloadStatus.downloading ||
-                t.status == DownloadStatus.converting;
-            return TabBarView(children: [
-              _list(all.where(isActive).toList(), _activeRow),
-              _list(all.where((t) => t.status == DownloadStatus.done).toList(), _doneRow),
-              _list(all.where((t) => t.status == DownloadStatus.failed).toList(), _errorRow),
-            ]);
-          },
-        ),
+        body: all == null
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(children: [
+                _list(all.where(isActive).toList(), _activeRow),
+                _list(all.where((t) => t.status == DownloadStatus.done).toList(), _doneRow),
+                _list(all.where((t) => t.status == DownloadStatus.failed).toList(), _errorRow),
+              ]),
       ),
     );
   }
