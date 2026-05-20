@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Internal docs & design artifacts (specs, plans, Claude Design bundle)
+/docs/superpowers/
+/.design/
