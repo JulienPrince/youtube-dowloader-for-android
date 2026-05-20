@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'data/download_repository.dart';
 import 'settings/settings_service.dart';
+import 'settings/settings_controller.dart';
 import 'app.dart';
 
 void main() async {
@@ -27,9 +28,8 @@ void main() async {
   final repo = DownloadRepository();
   await repo.open();
   await repo.failStale(); // vide les téléchargements zombies d'un process tué
-  final settings = SettingsService();
-  final themeMode = await settings.themeMode();
-  final accent = await settings.accent();
-  final onboarded = await settings.onboarded();
-  runApp(App(repo: repo, themeMode: themeMode, accent: accent, onboarded: onboarded));
+  final service = SettingsService();
+  final settings = await SettingsController.load(service);
+  final onboarded = await service.onboarded();
+  runApp(App(repo: repo, settings: settings, onboarded: onboarded));
 }

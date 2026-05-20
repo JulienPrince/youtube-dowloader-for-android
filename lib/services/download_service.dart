@@ -9,12 +9,14 @@ import '../models/video_info.dart';
 import '../models/stream_option.dart';
 import 'storage_service.dart';
 import 'conversion_service.dart';
+import '../settings/settings_service.dart';
 
 class DownloadService {
   final DownloadRepository _repo;
   final VideoExtractor _extractor;
   final Dio _dio; // miniature uniquement (i.ytimg.com, pas throttlé)
   final ConversionService _conversion;
+  final SettingsService _settings = SettingsService();
 
   DownloadService(this._repo, this._extractor,
       {Dio? dio, ConversionService? conversion})
@@ -55,6 +57,7 @@ class DownloadService {
             inputPath: tmp, outputPath: out,
             title: info.title, artist: info.author,
             thumbnailPath: thumb,
+            kbps: await _settings.audioKbps(),
           );
           if (!ok) throw Exception('FFmpeg failed');
         } finally {

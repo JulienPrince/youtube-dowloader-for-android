@@ -20,4 +20,9 @@ void main() {
   test('extrait le listId', () {
     expect(UrlUtils.listId('https://m.youtube.com/watch?v=abc&list=PL123'), 'PL123');
   });
+  test('détecte un Mix/Radio (list=RD…)', () {
+    expect(UrlUtils.isMix('https://m.youtube.com/watch?v=abc&list=RDabc'), isTrue);
+    expect(UrlUtils.isMix('https://m.youtube.com/watch?v=abc&list=PL123'), isFalse);
+    expect(UrlUtils.isMix('https://m.youtube.com/watch?v=abc'), isFalse);
+  });
 }

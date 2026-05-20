@@ -6,7 +6,10 @@ import '../extractor/youtube_explode_extractor.dart';
 import '../services/download_service.dart';
 import '../data/download_repository.dart';
 import '../settings/settings_service.dart';
+import '../settings/settings_controller.dart';
 import '../models/video_info.dart';
+import '../models/stream_option.dart';
+import '../models/download_format.dart';
 import '../models/download_task.dart';
 import '../theme/app_theme.dart';
 import '../utils/url_utils.dart';
@@ -17,7 +20,8 @@ import 'settings_screen.dart';
 
 class WebViewScreen extends StatefulWidget {
   final DownloadRepository repo;
-  const WebViewScreen({super.key, required this.repo});
+  final SettingsController settings;
+  const WebViewScreen({super.key, required this.repo, required this.settings});
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
 }
@@ -48,32 +52,55 @@ class _WebViewScreenState extends State<WebViewScreen> {
       _toast('Impossible de lire cette vidéo');
       return;
     }
-    // Métadonnées playlist : non bloquant (on garde le téléchargement vidéo seule).
-    if (UrlUtils.isPlaylist(url)) {
+    // Vraie playlist (PL…) énumérable seulement. Les Mix/Radio (RD…) ne le sont
+    // pas -> on ignore et on télécharge la vidéo seule.
+    final isMix = UrlUtils.isMix(url);
+    if (UrlUtils.isPlaylist(url) && !isMix) {
       try {
         meta = await _extractor.playlistMeta(url);
       } catch (e) {
         debugPrint('[Tubebox] playlistMeta failed for "$url": $e');
-        meta = const PlaylistMeta('Playlist', 0);
+        meta = null;
       }
     }
     if (!mounted) return;
     setState(() => _busy = false);
 
-    // Phase interactive.
+    if (isMix) {
+      _toast('Mix/Radio YouTube : seule cette vidéo sera téléchargée');
+    }
+
+    // Phase interactive : choix uniquement si la playlist est réellement énumérée.
     bool wholePlaylist = false;
-    if (meta != null) {
+    if (meta != null && meta.count > 0) {
       final choice = await showPlaylistChoiceDialog(context,
           playlistTitle: meta.title, count: meta.count, videoTitle: info.title);
       if (choice == null) return;
       wholePlaylist = choice == PlaylistChoice.all;
     }
 
-    final lastLabel = await _settings.lastFormatLabel();
-    if (!mounted) return;
-    final opt = await showFormatSheet(context, info.options, lastLabel);
-    if (opt == null) return;
-    await _settings.setLastFormatLabel(opt.label);
+    // Filtre qualité vidéo max (les options audio sont conservées).
+    final options = _capVideo(info.options, await _settings.maxVideoHeight());
+
+    // Format par défaut : si défini (MP4/MP3), on saute le bottom sheet.
+    final forced =
+        _settings.defaultDownloadFormat(await _settings.defaultFormat());
+    final StreamOption opt;
+    if (forced != null) {
+      final match = options.where((o) => o.format == forced);
+      if (match.isEmpty) {
+        _toast('Format ${forced == DownloadFormat.mp3 ? "MP3" : "MP4"} indisponible');
+        return;
+      }
+      opt = match.first;
+    } else {
+      final lastLabel = await _settings.lastFormatLabel();
+      if (!mounted) return;
+      final picked = await showFormatSheet(context, options, lastLabel);
+      if (picked == null) return;
+      opt = picked;
+      await _settings.setLastFormatLabel(opt.label);
+    }
 
     _toast('Téléchargement lancé…');
 
@@ -108,6 +135,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  List<StreamOption> _capVideo(List<StreamOption> opts, int maxH) {
+    if (maxH <= 0) return opts;
+    int h(StreamOption o) {
+      final m = RegExp(r'(\d+)p').firstMatch(o.label);
+      return m != null ? int.parse(m.group(1)!) : 0;
+    }
+    final audio = opts.where((o) => o.format != DownloadFormat.mp4).toList();
+    final videos = opts.where((o) => o.format == DownloadFormat.mp4).toList();
+    final kept = videos.where((o) => h(o) <= maxH).toList();
+    if (kept.isEmpty && videos.isNotEmpty) {
+      videos.sort((a, b) => h(a).compareTo(h(b)));
+      kept.add(videos.first);
+    }
+    return [...kept, ...audio];
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -134,8 +177,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => SettingsScreen(settings: widget.settings))),
           ),
         ],
       ),

@@ -45,6 +45,7 @@ dependencies:
   flutter_foreground_task: ^9.2.2
   google_fonts: ^8.1.0
   ffmpeg_kit_flutter_new: ^4.1.0
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,11 @@ flutter:
 
   assets:
     - assets/branding/
+
+  fonts:
+    - family: PirataOne
+      fonts:
+        - asset: assets/fonts/PirataOne-Regular.ttf
 
 flutter_launcher_icons:
   android: true

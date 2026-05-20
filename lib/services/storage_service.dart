@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../settings/settings_service.dart';
 
 class StorageService {
   static String safeFileName(String raw) {
@@ -19,11 +20,21 @@ class StorageService {
     return dir.path;
   }
 
-  static Future<String> musicPath(String fileName) async =>
-      p.join(await _baseDir('Music/Tubebox'), fileName);
+  static Future<String> _folder(Future<String?> custom) async {
+    final raw = await custom;
+    final name = (raw == null || raw.trim().isEmpty) ? 'Tubebox' : safeFileName(raw);
+    return name;
+  }
 
-  static Future<String> videoPath(String fileName) async =>
-      p.join(await _baseDir('Movies/Tubebox'), fileName);
+  static Future<String> musicPath(String fileName) async {
+    final sub = await _folder(SettingsService().musicDir());
+    return p.join(await _baseDir('Music/$sub'), fileName);
+  }
+
+  static Future<String> videoPath(String fileName) async {
+    final sub = await _folder(SettingsService().videoDir());
+    return p.join(await _baseDir('Movies/$sub'), fileName);
+  }
 
   static Future<String> tempPath(String fileName) async =>
       p.join((await getTemporaryDirectory()).path, fileName);

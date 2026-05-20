@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../data/download_repository.dart';
 import '../settings/settings_service.dart';
+import '../settings/settings_controller.dart';
 import '../theme/app_theme.dart';
 import 'webview_screen.dart';
 
 class OnboardingScreen extends StatelessWidget {
   final DownloadRepository repo;
-  const OnboardingScreen({super.key, required this.repo});
+  final SettingsController settings;
+  const OnboardingScreen({super.key, required this.repo, required this.settings});
 
   Future<void> _start(BuildContext context) async {
     await [
@@ -15,8 +17,8 @@ class OnboardingScreen extends StatelessWidget {
     ].request();
     await SettingsService().setOnboarded();
     if (!context.mounted) return;
-    Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => WebViewScreen(repo: repo)));
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => WebViewScreen(repo: repo, settings: settings)));
   }
 
   @override

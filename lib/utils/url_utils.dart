@@ -16,4 +16,10 @@ class UrlUtils {
     final id = Uri.tryParse(url)?.queryParameters['list'];
     return (id != null && id.isNotEmpty) ? id : null;
   }
+
+  /// Mix / Radio YouTube (list=RD…) : auto-généré et infini, non énumérable.
+  static bool isMix(String url) {
+    final id = listId(url);
+    return id != null && id.startsWith('RD');
+  }
 }

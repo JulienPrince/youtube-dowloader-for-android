@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 import '../data/download_repository.dart';
 import '../models/download_task.dart';
 import '../models/download_format.dart';
@@ -50,7 +51,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           title: const Text('Mes téléchargements', style: TextStyle(fontWeight: FontWeight.w600)),
-          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh)],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: 'Tout effacer',
+              onPressed: _clearAll,
+            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
+          ],
           bottom: TabBar(
             indicatorColor: c.accent,
             labelColor: c.text,
@@ -82,11 +90,64 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (tasks.isEmpty) {
       return Center(child: Text('Rien ici', style: TextStyle(color: context.c.muted)));
     }
+    final c = context.c;
     return ListView.separated(
       itemCount: tasks.length,
-      separatorBuilder: (_, _) => Divider(height: 0.5, color: context.c.border),
-      itemBuilder: (ctx, i) => row(ctx, tasks[i]),
+      separatorBuilder: (_, _) => Divider(height: 0.5, color: c.border),
+      itemBuilder: (ctx, i) {
+        final t = tasks[i];
+        return Dismissible(
+          key: ValueKey(t.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: c.error.withValues(alpha: 0.12),
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 24),
+            child: Icon(Icons.delete_outline, color: c.error),
+          ),
+          onDismissed: (_) async {
+            await widget.repo.delete(t.id);
+            _refresh();
+          },
+          child: row(ctx, t),
+        );
+      },
     );
+  }
+
+  Future<void> _clearAll() async {
+    final c = context.c;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.surface,
+        title: const Text('Tout effacer ?'),
+        content: const Text('Efface la liste des téléchargements (les fichiers déjà '
+            'enregistrés ne sont pas supprimés).'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: c.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Effacer'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await widget.repo.clearAll();
+      _refresh();
+    }
+  }
+
+  Future<void> _openFile(DownloadTask t) async {
+    final path = t.localPath;
+    if (path == null) return;
+    final res = await OpenFilex.open(path);
+    if (res.type != ResultType.done && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lecture impossible : ${res.message}')));
+    }
   }
 
   Widget _thumb(BuildContext ctx, DownloadTask t) {
@@ -135,21 +196,24 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Widget _doneRow(BuildContext ctx, DownloadTask t) {
     final c = ctx.c;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(children: [
-        _thumb(ctx, t),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
-          const SizedBox(height: 2),
-          Text('${t.format.name.toUpperCase()} · ${t.localPath?.split('/').last ?? ''}',
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, color: c.muted)),
-        ])),
-        Icon(Icons.check_circle, size: 18, color: c.accent),
-      ]),
+    return InkWell(
+      onTap: () => _openFile(t),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(children: [
+          _thumb(ctx, t),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.text)),
+            const SizedBox(height: 2),
+            Text('${t.format.name.toUpperCase()} · ${t.localPath?.split('/').last ?? ''}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: c.muted)),
+          ])),
+          Icon(Icons.play_circle_outline, size: 20, color: c.accent),
+        ]),
+      ),
     );
   }
 

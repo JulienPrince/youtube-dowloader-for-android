@@ -34,6 +34,8 @@ class DownloadRepository {
   Future<void> delete(String id) =>
       _db.delete('downloads', where: 'id = ?', whereArgs: [id]);
 
+  Future<void> clearAll() => _db.delete('downloads');
+
   /// Au démarrage : un téléchargement non terminé vient d'un process tué
   /// (il ne reprendra pas). On le marque en échec pour vider "En cours".
   Future<void> failStale() => _db.update(

@@ -10,6 +10,7 @@ class ConversionService {
     required String title,
     required String artist,
     String? thumbnailPath,
+    int kbps = 320,
   }) async {
     // executeWithArguments passe chaque argument tel quel : pas de parsing
     // shell, donc des titres avec espaces ou guillemets ne cassent rien.
@@ -24,7 +25,7 @@ class ConversionService {
       ] else ...[
         '-map', '0:a',
       ],
-      '-c:a', 'libmp3lame', '-q:a', '2',
+      '-c:a', 'libmp3lame', '-b:a', '${kbps}k',
       '-metadata', 'title=$title',
       '-metadata', 'artist=$artist',
       outputPath,
